@@ -2,7 +2,7 @@ import 'package:defcon/city.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
-class CityNotifier extends AsyncNotifier {
+class CityNotifier extends AsyncNotifier<List<City>> {
   @override
   Future<List<City>> build() => getAllCities();
 
@@ -36,3 +36,6 @@ class CityNotifier extends AsyncNotifier {
     ];
   }
 }
+
+final cityProvider =
+    AsyncNotifierProvider<CityNotifier, List<City>>(() => CityNotifier());
