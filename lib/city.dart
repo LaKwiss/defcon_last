@@ -1,4 +1,6 @@
 import 'package:equatable/equatable.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 
 class City extends Equatable {
@@ -31,6 +33,20 @@ class City extends Equatable {
       latLng: latLng ?? this.latLng,
       population: population ?? this.population,
       width: width ?? this.width,
+    );
+  }
+
+  Marker get marker {
+    return Marker(
+      width: width.toDouble(),
+      height: width.toDouble(),
+      point: latLng,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.red,
+          shape: BoxShape.circle,
+        ),
+      ),
     );
   }
 }

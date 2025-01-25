@@ -31,6 +31,7 @@ class HomeScreen extends ConsumerWidget {
     return Scaffold(
       body: FlutterMap(
         options: MapOptions(
+          backgroundColor: Colors.black,
           initialCenter: LatLng(48.85795912675502, 2.344188416600133),
           initialZoom: 13.0,
           onTap: (tapPosition, point) {
@@ -53,22 +54,39 @@ class HomeScreen extends ConsumerWidget {
         ),
         children: [
           TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+            keepBuffer: 20,
+            urlTemplate:
+                'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
             userAgentPackageName: 'com.defcon.app',
           ),
-          PolylineLayer(
-            polylines: [
-              Polyline(points: [
-                LatLng(30, 40),
-                LatLng(40, 50),
-              ], color: Colors.red, strokeWidth: 3.0),
+          Builder(
+            builder: (context) {
+              return CircleLayer(
+                circles: [
+                  CircleMarker(
+                    point: LatLng(48.85795912675502, 2.344188416600133),
+                    radius: 10000,
+                    useRadiusInMeter: true,
+                    color: Colors.blue.withAlpha(((0.5) * 255).round()),
+                  ),
+                ],
+              );
+            },
+          ),
+          MarkerLayer(
+            markers: [
+              Marker(
+                width: 80.0,
+                height: 80.0,
+                point: LatLng(48.85795912675502, 2.344188416600133),
+                child: Icon(
+                  Icons.location_on,
+                  color: Colors.red,
+                  size: 40.0,
+                ),
+              ),
             ],
           ),
-          Builder(builder: (context) {
-            return CircleLayer(
-              circles: [],
-            );
-          }),
         ],
       ),
     );
