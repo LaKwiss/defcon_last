@@ -1,5 +1,4 @@
 import 'dart:developer';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -49,7 +48,6 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
             initialCenter: initialPosition,
             initialZoom: 13,
             onMapEvent: _handleMapEvent,
-            onTap: _handleTapEvent,
             interactionOptions: InteractionOptions(
               flags: InteractiveFlag.all & ~InteractiveFlag.doubleTapZoom,
             ),
@@ -62,20 +60,30 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
             ),
             Consumer(
               builder: (_, ref, __) => ref.watch(cityProvider).when(
-                    data: (cities) => CircleLayer(
-                      circles: cities
-                          .map((city) => CircleMarker(
+                    data: (cities) => MarkerLayer(
+                      markers: cities
+                          .map((city) => Marker(
                                 point: city.latLng,
-                                radius: 15,
-                                color: Colors.red.withOpacity(0.5),
-                                borderColor: Colors.red,
-                                borderStrokeWidth: 1.5,
-                                useRadiusInMeter: false,
+                                width: 30,
+                                height: 30,
+                                child: GestureDetector(
+                                  onTap: () => _handleTapEvent(city),
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.withOpacity(0.5),
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: Colors.red,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                  ),
+                                ),
                               ))
                           .toList(),
                     ),
-                    loading: () => const CircleLayer<City>(circles: []),
-                    error: (_, __) => const CircleLayer<City>(circles: []),
+                    loading: () => const MarkerLayer(markers: []),
+                    error: (_, __) => const MarkerLayer(markers: []),
                   ),
             ),
           ],
@@ -83,43 +91,33 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
       );
 
   void _handleMapEvent(MapEvent event) {
-    if (event.camera.zoom < 6.0) {
-      ref.read(cityProvider.notifier).updateVisibleCities(null);
-      return;
+    if (event.camera.zoom < 3.0) {
+      // Afficher uniquement les villes avec une population élevée
+      ref
+          .read(cityProvider.notifier)
+          .updateVisibleCities(null, minPopulation: 1000000);
+    } else if (event.camera.zoom < 10.0) {
+      // Afficher les villes avec une population moyenne
+      ref.read(cityProvider.notifier).updateVisibleCities(
+          event.camera.visibleBounds,
+          minPopulation: 500000);
+    } else {
+      // Afficher toutes les villes
+      ref
+          .read(cityProvider.notifier)
+          .updateVisibleCities(event.camera.visibleBounds);
     }
-    ref
-        .read(cityProvider.notifier)
-        .updateVisibleCities(event.camera.visibleBounds);
   }
 
-  void _handleTapEvent(TapPosition tapPosition, LatLng point) {
-    log('Tapped at $point');
-
-    final groupedCities = ref.read(cityProvider).value ?? [];
-    // Convert radius to meters (1km = 1000m)
-    final radiusInMeters = 2000.0;
-
-    final nearbyCity = groupedCities.where((city) {
-      final distanceInMeters = const Distance()(city.latLng, point);
-      return distanceInMeters <= radiusInMeters;
-    }).toList();
-
-    if (nearbyCity.isNotEmpty) {
-      showDialog(
-        context: context,
-        builder: (context) => AlertDialog(
-          title: Text(nearbyCity.length == 1
-              ? nearbyCity.first.name
-              : '${nearbyCity.length} villes'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: nearbyCity
-                .map((city) => Text('${city.name} (${city.population} hab.)'))
-                .toList(),
-          ),
-        ),
-      );
-    }
+  void _handleTapEvent(City city) {
+    log('Tapped on ${city.name}');
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(city.name),
+        content: Text('${city.population} habitants'),
+      ),
+    );
   }
 
   @override

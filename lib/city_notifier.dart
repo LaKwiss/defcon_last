@@ -24,14 +24,23 @@ class CityNotifier extends AsyncNotifier<List<City>> {
     }
   }
 
-  void updateVisibleCities(LatLngBounds? bounds) {
+  void updateVisibleCities(LatLngBounds? bounds, {int? minPopulation}) {
     if (bounds == null) {
+      // Si les limites ne sont pas définies, réinitialiser la liste des villes visibles
       state = AsyncValue.data(List.empty());
       return;
     }
 
-    state = AsyncValue.data(
-        _allCities.where((city) => bounds.contains(city.latLng)).toList());
+    // Filtrer les villes en fonction des limites et de la population minimale
+    final filteredCities = _allCities.where((city) {
+      final withinBounds = bounds.contains(city.latLng);
+      final meetsPopulationCriteria =
+          minPopulation == null || city.population >= minPopulation;
+      return withinBounds && meetsPopulationCriteria;
+    }).toList();
+
+    // Mettre à jour l'état avec les villes filtrées
+    state = AsyncValue.data(filteredCities);
   }
 }
 
