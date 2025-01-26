@@ -108,8 +108,6 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
       );
 
   void _handleMapEvent(MapEvent event) {
-    //if (event is! MapEventMoveEnd) return;
-
     if (event.camera.zoom < 8.0) {
       ref.read(cityProvider.notifier).updateVisibleCities(null);
       return;
