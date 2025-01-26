@@ -1,8 +1,7 @@
-import 'package:defcon/city.dart';
-import 'package:defcon/city_repository.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:latlong2/latlong.dart';
+import 'city.dart';
+import 'city_repository.dart';
 
 class CityNotifier extends AsyncNotifier<List<City>> {
   List<City> _allCities = [];
@@ -13,8 +12,6 @@ class CityNotifier extends AsyncNotifier<List<City>> {
     await fetchCities();
     return _visibleCities;
   }
-
-  int get cityLength => _allCities.length;
 
   Future<void> fetchCities() async {
     try {
@@ -30,15 +27,11 @@ class CityNotifier extends AsyncNotifier<List<City>> {
   void updateVisibleCities(LatLngBounds? bounds) {
     if (bounds == null) {
       state = AsyncValue.data(List.empty());
-    } else {
-      state = AsyncValue.data(
-          _allCities.where((city) => bounds.contains(city.latLng)).toList());
+      return;
     }
-  }
 
-  bool isInRange(LatLng point, City city) {
-    return const Distance().as(LengthUnit.Meter, city.latLng, point) <=
-        city.width;
+    state = AsyncValue.data(
+        _allCities.where((city) => bounds.contains(city.latLng)).toList());
   }
 }
 

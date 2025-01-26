@@ -51,18 +51,12 @@ class City extends Equatable {
   }
 
   factory City.fromJson(Map<String, dynamic> json) {
-    final latLng = json['latLng'] as Map<String, dynamic>;
     return City(
-      name: json['name'] as String,
-      latLng: LatLng(
-          (latLng['lat'] is int)
-              ? (latLng['lat'] as int).toDouble()
-              : latLng['lat'] as double,
-          (latLng['lng'] is int)
-              ? (latLng['lng'] as int).toDouble()
-              : latLng['lng'] as double),
-      population: json['population'] as int,
-      width: json['width'] as int,
+      name: json['asciiname'],
+      latLng:
+          LatLng((json['latitude']).toDouble(), (json['longitude']).toDouble()),
+      population: json['population'],
+      width: json['width'] ?? 100,
     );
   }
 }

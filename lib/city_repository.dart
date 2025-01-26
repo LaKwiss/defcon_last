@@ -1,6 +1,6 @@
 import 'dart:developer';
-import 'package:defcon/city.dart';
 import 'package:dio/dio.dart';
+import 'city.dart';
 
 class CityRepository {
   static final _dio = Dio(BaseOptions(
@@ -24,12 +24,9 @@ class CityRepository {
       return data
           .map((json) => City.fromJson(json as Map<String, dynamic>))
           .toList();
-    } on DioException catch (e, stack) {
+    } catch (e, stack) {
       log('Fetch failed', error: e, stackTrace: stack);
       rethrow;
-    } catch (e, stack) {
-      log('Unexpected error', error: e, stackTrace: stack);
-      throw Exception('Fetch failed: $e');
     }
   }
 }
