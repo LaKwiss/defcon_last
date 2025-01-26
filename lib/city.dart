@@ -6,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 class City extends Equatable {
   final String name;
   final LatLng latLng;
-  final double population;
+  final int population;
   final int width;
 
   const City({
@@ -25,7 +25,7 @@ class City extends Equatable {
   City copyWith({
     String? name,
     LatLng? latLng,
-    double? population,
+    int? population,
     int? width,
   }) {
     return City(
@@ -47,6 +47,22 @@ class City extends Equatable {
           shape: BoxShape.circle,
         ),
       ),
+    );
+  }
+
+  factory City.fromJson(Map<String, dynamic> json) {
+    final latLng = json['latLng'] as Map<String, dynamic>;
+    return City(
+      name: json['name'] as String,
+      latLng: LatLng(
+          (latLng['lat'] is int)
+              ? (latLng['lat'] as int).toDouble()
+              : latLng['lat'] as double,
+          (latLng['lng'] is int)
+              ? (latLng['lng'] as int).toDouble()
+              : latLng['lng'] as double),
+      population: json['population'] as int,
+      width: json['width'] as int,
     );
   }
 }

@@ -1,41 +1,47 @@
 import 'package:defcon/city.dart';
+import 'package:defcon/city_repository.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:latlong2/latlong.dart';
 
 class CityNotifier extends AsyncNotifier<List<City>> {
-  @override
-  Future<List<City>> build() => getAllCities();
+  List<City> _allCities = [];
+  List<City> _visibleCities = [];
 
-  Future<List<City>> getAllCities() async {
-    await Future.delayed(const Duration(seconds: 2));
-    return [
-      City(
-        name: 'Paris',
-        latLng: LatLng(48.85795912675502, 2.344188416600133),
-        population: 2140526,
-        width: 10000,
-      ),
-      City(
-        name: 'London',
-        latLng: LatLng(51.5074, -0.1278),
-        population: 8982000,
-        width: 10000,
-      ),
-      City(
-        name: 'New York',
-        latLng: LatLng(40.7128, -74.0060),
-        population: 8336817,
-        width: 10000,
-      ),
-      City(
-        name: 'Tokyo',
-        latLng: LatLng(35.6895, 139.6917),
-        population: 9273000,
-        width: 10000,
-      ),
-    ];
+  @override
+  Future<List<City>> build() async {
+    await fetchCities();
+    return _visibleCities;
+  }
+
+  int get cityLength => _allCities.length;
+
+  Future<void> fetchCities() async {
+    try {
+      state = const AsyncValue.loading();
+      _allCities = await CityRepository.fetchCities();
+      _visibleCities = _allCities;
+      state = AsyncValue.data(_visibleCities);
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+    }
+  }
+
+  void updateVisibleCities(LatLngBounds? bounds) {
+    if (bounds == null) {
+      state = AsyncValue.data(List.empty());
+    } else {
+      state = AsyncValue.data(
+          _allCities.where((city) => bounds.contains(city.latLng)).toList());
+    }
+  }
+
+  bool isInRange(LatLng point, City city) {
+    return const Distance().as(LengthUnit.Meter, city.latLng, point) <=
+        city.width;
   }
 }
 
-final cityProvider =
-    AsyncNotifierProvider<CityNotifier, List<City>>(() => CityNotifier());
+final cityProvider = AsyncNotifierProvider<CityNotifier, List<City>>(
+  () => CityNotifier(),
+);
