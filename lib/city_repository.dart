@@ -114,11 +114,8 @@ class CityRepository {
       );
     }
     return data.map((json) {
-      log(json.runtimeType.toString());
       if (json != null) {
         City city = City.fromJson(json);
-        log(json['geonameid'].toString());
-        log(json['asciiname']);
         return city;
       } else {
         throw Exception('One city is null');

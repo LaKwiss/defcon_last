@@ -110,7 +110,6 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _handleTapEvent(City city) {
-    log('Tapped on ${city.name}');
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
