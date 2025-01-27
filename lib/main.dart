@@ -1,4 +1,4 @@
-import 'dart:developer';
+import 'package:defcon/city_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,30 +91,27 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
       );
 
   void _handleMapEvent(MapEvent event) {
-    if (event.camera.zoom < 3.0) {
-      // Afficher uniquement les villes avec une population élevée
-      ref
-          .read(cityProvider.notifier)
-          .updateVisibleCities(null, minPopulation: 1000000);
-    } else if (event.camera.zoom < 10.0) {
-      // Afficher les villes avec une population moyenne
-      ref.read(cityProvider.notifier).updateVisibleCities(
-          event.camera.visibleBounds,
-          minPopulation: 500000);
-    } else {
-      // Afficher toutes les villes
-      ref
-          .read(cityProvider.notifier)
-          .updateVisibleCities(event.camera.visibleBounds);
-    }
+    ref
+        .read(cityProvider.notifier)
+        .updateVisibleCities(event.camera.visibleBounds, minPopulation: 400000);
   }
 
   void _handleTapEvent(City city) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(city.name),
-        content: Text('${city.population} habitants'),
+      builder: (context) => Material(
+        type: MaterialType.transparency,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: GestureDetector(
+                onTap: () => Navigator.of(context).pop(),
+                child: Container(color: Colors.black38),
+              ),
+            ),
+            CityView(city: city),
+          ],
+        ),
       ),
     );
   }
