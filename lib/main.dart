@@ -99,14 +99,15 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
   }
 
   void _handleTapEvent(City city) {
-    print(city.toString());
     showDialog(
       context: context,
       builder: (context) => Material(
         type: MaterialType.transparency,
         child: Stack(
           children: [
-            Positioned.fill(
+            Positioned(
+              top: MediaQuery.of(context).size.height / 2,
+              left: MediaQuery.of(context).size.width / 2,
               child: GestureDetector(
                 onTap: () => Navigator.of(context).pop(),
                 child: Container(color: Colors.black38),
