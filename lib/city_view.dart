@@ -5,11 +5,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:intl/intl.dart';
 import '../models/city.dart';
 
-// Provider pour gérer l'état d'édition et la carte sélectionnée
-final editModeProvider = StateProvider.family<EditModeState, String>(
-    (ref, cityId) => EditModeState(isEditing: false, selectedCardId: null));
+/// ---------------------------------------------------------------------------
+///                          PROVIDERS
+/// ---------------------------------------------------------------------------
 
-// Provider pour la configuration du layout
+/// Provider pour gérer l'état d'édition et la carte sélectionnée.
+final editModeProvider = StateProvider.family<EditModeState, String>(
+  (ref, cityId) => EditModeState(isEditing: false, selectedCardId: null),
+);
+
+/// Provider pour la configuration du layout (positionnement x, y).
 final cityLayoutConfigProvider =
     StateProvider.family<Map<String, dynamic>, String>(
   (ref, cityId) => {
@@ -18,7 +23,94 @@ final cityLayoutConfigProvider =
   },
 );
 
-// Classe pour représenter l'état d'édition
+/// ---------------------------------------------------------------------------
+///  Provider et StateNotifier pour gérer l'ordre (Z-ordre) des cartes dans
+///  chaque onglet, par exemple pour la vue "overview", "production", etc.
+/// ---------------------------------------------------------------------------
+
+/// Provider pour l'ordre des cartes (layout vertical) dans chaque onglet.
+/// La clé du Map correspond à l'onglet ("overview", "production", etc.),
+/// et la valeur est la liste ordonnée des cardId.
+final cityCardOrderProvider = StateNotifierProvider.family<
+    CityCardOrderNotifier, Map<String, List<String>>, String>(
+  (ref, cityId) => CityCardOrderNotifier(cityId),
+);
+
+/// StateNotifier qui gère l'ordre des cartes.
+/// On charge/sauvegarde dans SharedPreferences pour persister cet ordre.
+class CityCardOrderNotifier extends StateNotifier<Map<String, List<String>>> {
+  final String cityId;
+
+  /// Constructeur : on initialise l'état en chargeant l'ordre depuis
+  /// les préférences, ou en définissant un ordre par défaut.
+  CityCardOrderNotifier(this.cityId) : super({}) {
+    _loadInitialOrder();
+  }
+
+  /// Monte la carte d'un cran dans l'onglet donné [tabKey].
+  void moveCardUp(String tabKey, String cardId) {
+    final currentOrder = [...?state[tabKey]]; // copie défensive
+    final index = currentOrder.indexOf(cardId);
+    if (index > 0) {
+      currentOrder.removeAt(index);
+      currentOrder.insert(index - 1, cardId);
+      state = {...state, tabKey: currentOrder};
+      _saveOrder();
+    }
+  }
+
+  /// Descend la carte d'un cran dans l'onglet donné [tabKey].
+  void moveCardDown(String tabKey, String cardId) {
+    final currentOrder = [...?state[tabKey]];
+    final index = currentOrder.indexOf(cardId);
+    if (index >= 0 && index < currentOrder.length - 1) {
+      currentOrder.removeAt(index);
+      currentOrder.insert(index + 1, cardId);
+      state = {...state, tabKey: currentOrder};
+      _saveOrder();
+    }
+  }
+
+  /// Charge l'ordre initial depuis les SharedPreferences,
+  /// ou utilise un ordre par défaut si non trouvé.
+  Future<void> _loadInitialOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    final stored = prefs.getString('card_order_$cityId');
+    if (stored != null) {
+      final Map<String, dynamic> decoded = json.decode(stored);
+      final result = decoded.map((key, value) => MapEntry(
+            key,
+            (value as List).map((e) => e.toString()).toList(),
+          ));
+      state = result;
+    } else {
+      // Ordre par défaut : ajustez selon vos besoins
+      state = {
+        'overview': ['city_info', 'quick_stats', 'recent_activity'],
+        'production': [
+          'resources_overview',
+          'production_trends',
+          'production_efficiency',
+          'upgrade_options'
+        ],
+        'trade': ['active_offers', 'trade_history', 'market_analysis'],
+        'development': ['development_projects', 'resource_requirements'],
+      };
+    }
+  }
+
+  /// Sauvegarde l'ordre actuel des cartes dans les SharedPreferences.
+  Future<void> _saveOrder() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('card_order_$cityId', json.encode(state));
+  }
+}
+
+/// ---------------------------------------------------------------------------
+///                         CLASSES ET WIDGETS
+/// ---------------------------------------------------------------------------
+
+/// Classe représentant l'état d'édition : [isEditing] + [selectedCardId].
 class EditModeState {
   final bool isEditing;
   final String? selectedCardId;
@@ -39,13 +131,27 @@ class EditModeState {
   }
 }
 
-// Widget personnalisé pour les cartes éditables
+/// Widget "EditableCard" qui entoure l'UI d'une carte. Permet de gérer :
+/// - l'affichage d'un encadré spécial en mode édition.
+/// - l'affichage de boutons additionnels (ex. flèches Haut/Bas) en mode édition.
 class EditableCard extends StatelessWidget {
+  /// L'identifiant unique de la carte (ex.: "city_info").
   final String cardId;
+
+  /// Le contenu enfant de la carte.
   final Widget child;
+
+  /// Indique si on est en mode édition.
   final bool isEditing;
+
+  /// Indique si la carte est sélectionnée (par ex. pour la surbrillance).
   final bool isSelected;
+
+  /// Callback quand on sélectionne la carte (en mode édition).
   final VoidCallback? onSelect;
+
+  /// Boutons supplémentaires à afficher en overlay (ex. flèches Haut/Bas).
+  final Widget additionalButtons;
 
   const EditableCard({
     super.key,
@@ -54,6 +160,7 @@ class EditableCard extends StatelessWidget {
     required this.isEditing,
     required this.isSelected,
     this.onSelect,
+    this.additionalButtons = const SizedBox.shrink(),
   });
 
   @override
@@ -85,7 +192,13 @@ class EditableCard extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            child,
+            /// Contenu principal de la carte.
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: child,
+            ),
+
+            /// Icône de sélection (check/radio) en mode édition, en haut à droite.
             if (isEditing)
               Positioned(
                 top: 8,
@@ -100,6 +213,14 @@ class EditableCard extends StatelessWidget {
                   size: 20,
                 ),
               ),
+
+            /// Boutons supplémentaires (ex.: flèches Haut/Bas) en haut à gauche.
+            if (isEditing)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: additionalButtons,
+              ),
           ],
         ),
       ),
@@ -107,8 +228,15 @@ class EditableCard extends StatelessWidget {
   }
 }
 
+/// Widget principal pour l'affichage d'une ville.
+/// On y gère :
+/// - Le positionnement draggable de la vue (layout),
+/// - Le multi-onglet (TabBar),
+/// - Le mode édition (sélection de cartes, reordering, etc.),
+/// - L'affichage des différents "blocks" de carte.
 class CityView extends ConsumerStatefulWidget {
   final City city;
+
   const CityView({super.key, required this.city});
 
   @override
@@ -117,11 +245,17 @@ class CityView extends ConsumerStatefulWidget {
 
 class _CityViewState extends ConsumerState<CityView>
     with TickerProviderStateMixin {
+  /// Dimensions par défaut de la fenêtre.
   static const double _defaultWidth = 450;
   static const double _defaultHeight = 600;
+
+  /// Permet le formatage des nombres (ex.: 2 345).
   final NumberFormat _numberFormat = NumberFormat.decimalPattern();
 
+  /// Contrôleur pour notre TabBar (4 onglets).
   late TabController _tabController;
+
+  /// Position (x, y) de la fenêtre draggable.
   Offset _position = const Offset(20, 20);
 
   @override
@@ -131,6 +265,7 @@ class _CityViewState extends ConsumerState<CityView>
     _loadLayout();
   }
 
+  /// Charge la position x,y depuis les SharedPreferences.
   Future<void> _loadLayout() async {
     final prefs = await SharedPreferences.getInstance();
     final layoutData = prefs.getString('city_layout_${widget.city.name}');
@@ -147,6 +282,7 @@ class _CityViewState extends ConsumerState<CityView>
     }
   }
 
+  /// Sauvegarde la position x,y de la fenêtre dans les SharedPreferences.
   Future<void> _saveLayout() async {
     final prefs = await SharedPreferences.getInstance();
     final layout =
@@ -166,6 +302,7 @@ class _CityViewState extends ConsumerState<CityView>
         updatedLayout;
   }
 
+  /// Bascule le mode édition (on/off).
   void _toggleEditMode() {
     final editMode = ref.read(editModeProvider(widget.city.name));
     ref.read(editModeProvider(widget.city.name).notifier).state = EditModeState(
@@ -174,6 +311,7 @@ class _CityViewState extends ConsumerState<CityView>
     );
   }
 
+  /// Sélectionne/désélectionne une carte [cardId].
   void _selectCard(String cardId) {
     final editMode = ref.read(editModeProvider(widget.city.name));
     ref.read(editModeProvider(widget.city.name).notifier).state =
@@ -182,17 +320,56 @@ class _CityViewState extends ConsumerState<CityView>
     );
   }
 
-  Widget _wrapInEditableCard(String cardId, Widget child) {
+  /// Enveloppe [child] dans un EditableCard, en gérant notamment :
+  /// - la sélection/désélection,
+  /// - les flèches de réorganisation.
+  ///
+  /// [tabKey] : l'onglet dans lequel se trouve cette carte
+  ///            (ex: "overview", "production"...).
+  Widget _wrapInEditableCard(
+    String cardId,
+    Widget child, {
+    required String tabKey,
+  }) {
     final editMode = ref.watch(editModeProvider(widget.city.name));
+
     return EditableCard(
       cardId: cardId,
       isEditing: editMode.isEditing,
       isSelected: editMode.selectedCardId == cardId,
       onSelect: () => _selectCard(cardId),
+
+      /// On crée deux boutons flèche haut/bas qui appellent le Notifier
+      /// pour réorganiser la liste.
+      additionalButtons: editMode.isEditing
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.arrow_upward, size: 16),
+                  onPressed: () {
+                    ref
+                        .read(cityCardOrderProvider(widget.city.name).notifier)
+                        .moveCardUp(tabKey, cardId);
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.arrow_downward, size: 16),
+                  onPressed: () {
+                    ref
+                        .read(cityCardOrderProvider(widget.city.name).notifier)
+                        .moveCardDown(tabKey, cardId);
+                  },
+                ),
+              ],
+            )
+          : const SizedBox.shrink(),
+
       child: child,
     );
   }
 
+  /// Détermine un label "type de ville" en fonction des ressources.
   String get _cityType {
     final res = widget.city.resources;
     if (res.warBonds > 500) return 'Financière';
@@ -208,6 +385,8 @@ class _CityViewState extends ConsumerState<CityView>
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.of(context).size;
+
+    /// Ajuste la largeur/hauteur à la taille de l'écran.
     final width =
         screenSize.width > 400 ? _defaultWidth : screenSize.width * 0.8;
     final height =
@@ -246,7 +425,7 @@ class _CityViewState extends ConsumerState<CityView>
                       _buildOverviewTab(),
                       _buildProductionTab(),
                       _buildTradeTab(),
-                      _buildDevelopmentProjects(),
+                      _buildDevelopmentTab(),
                     ],
                   ),
                 ),
@@ -258,6 +437,7 @@ class _CityViewState extends ConsumerState<CityView>
     );
   }
 
+  /// Bar d'en-tête avec le nom de la ville, le bouton d'édition et de fermeture.
   Widget _buildHeader() {
     final editMode = ref.watch(editModeProvider(widget.city.name));
     return Container(
@@ -295,6 +475,7 @@ class _CityViewState extends ConsumerState<CityView>
     );
   }
 
+  /// TabBar (4 onglets) : Vue d'ensemble, Production, Commerce, Développement.
   Widget _buildTabs() {
     return TabBar(
       controller: _tabController,
@@ -308,21 +489,117 @@ class _CityViewState extends ConsumerState<CityView>
     );
   }
 
+  /// Onglet "Vue d'ensemble" : on construit les cartes dans l'ordre défini
+  /// dans le provider [cityCardOrderProvider] pour la clé "overview".
   Widget _buildOverviewTab() {
+    /// On récupère la liste des cardId pour l'onglet "overview".
+    final orderMap = ref.watch(cityCardOrderProvider(widget.city.name));
+    final cardsOrder = orderMap['overview'] ?? [];
+
     return SingleChildScrollView(
       child: Padding(
         padding: const EdgeInsets.all(8.0),
         child: Column(
-          children: [
-            _buildCityInfo(),
-            _buildQuickStats(),
-            _buildRecentActivity(),
-          ],
+          children: cardsOrder.map((cardId) {
+            switch (cardId) {
+              case 'city_info':
+                return _buildCityInfo();
+              case 'quick_stats':
+                return _buildQuickStats();
+              case 'recent_activity':
+                return _buildRecentActivity();
+              default:
+                return const SizedBox.shrink();
+            }
+          }).toList(),
         ),
       ),
     );
   }
 
+  /// Onglet "Production" : même logique, avec la clé "production".
+  Widget _buildProductionTab() {
+    final orderMap = ref.watch(cityCardOrderProvider(widget.city.name));
+    final cardsOrder = orderMap['production'] ?? [];
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: cardsOrder.map((cardId) {
+            switch (cardId) {
+              case 'resources_overview':
+                return _buildResourcesOverview();
+              case 'production_trends':
+                return _buildProductionTrends();
+              case 'production_efficiency':
+                return _buildProductionEfficiency();
+              case 'upgrade_options':
+                return _buildUpgradeOptions();
+              default:
+                return const SizedBox.shrink();
+            }
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  /// Onglet "Commerce" : même logique, avec la clé "trade".
+  Widget _buildTradeTab() {
+    final orderMap = ref.watch(cityCardOrderProvider(widget.city.name));
+    final cardsOrder = orderMap['trade'] ?? [];
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: cardsOrder.map((cardId) {
+            switch (cardId) {
+              case 'active_offers':
+                return _buildActiveOffers();
+              case 'trade_history':
+                return _buildTradeHistory();
+              case 'market_analysis':
+                return _buildMarketAnalysis();
+              default:
+                return const SizedBox.shrink();
+            }
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  /// Onglet "Développement" : même logique, avec la clé "development".
+  Widget _buildDevelopmentTab() {
+    final orderMap = ref.watch(cityCardOrderProvider(widget.city.name));
+    final cardsOrder = orderMap['development'] ?? [];
+
+    return SingleChildScrollView(
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: Column(
+          children: cardsOrder.map((cardId) {
+            switch (cardId) {
+              case 'development_projects':
+                return _buildDevelopmentProjects();
+              case 'resource_requirements':
+                return _buildResourceRequirements();
+              default:
+                return const SizedBox.shrink();
+            }
+          }).toList(),
+        ),
+      ),
+    );
+  }
+
+  /// -------------------------------------------------------------------------
+  ///                        CARTES DE L'ONGLET "OVERVIEW"
+  /// -------------------------------------------------------------------------
+
+  /// Carte "INFORMATIONS" de la ville.
   Widget _buildCityInfo() {
     return _wrapInEditableCard(
       'city_info',
@@ -353,9 +630,11 @@ class _CityViewState extends ConsumerState<CityView>
           ),
         ),
       ),
+      tabKey: 'overview',
     );
   }
 
+  /// Carte "STATISTIQUES" avec une grille rapide de ressources.
   Widget _buildQuickStats() {
     return _wrapInEditableCard(
       'quick_stats',
@@ -375,9 +654,11 @@ class _CityViewState extends ConsumerState<CityView>
           ),
         ),
       ),
+      tabKey: 'overview',
     );
   }
 
+  /// Carte "ACTIVITÉ RÉCENTE".
   Widget _buildRecentActivity() {
     return _wrapInEditableCard(
       'recent_activity',
@@ -399,25 +680,15 @@ class _CityViewState extends ConsumerState<CityView>
           ),
         ),
       ),
+      tabKey: 'overview',
     );
   }
 
-  Widget _buildProductionTab() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            _buildResourcesOverview(),
-            _buildProductionTrends(),
-            _buildProductionEfficiency(),
-            _buildUpgradeOptions(),
-          ],
-        ),
-      ),
-    );
-  }
+  /// -------------------------------------------------------------------------
+  ///                      CARTES DE L'ONGLET "PRODUCTION"
+  /// -------------------------------------------------------------------------
 
+  /// Carte "PRODUCTION" : aperçu des ressources produites.
   Widget _buildResourcesOverview() {
     return _wrapInEditableCard(
       'resources_overview',
@@ -437,9 +708,11 @@ class _CityViewState extends ConsumerState<CityView>
           ),
         ),
       ),
+      tabKey: 'production',
     );
   }
 
+  /// Carte "TENDANCES" (graphiques de production).
   Widget _buildProductionTrends() {
     return _wrapInEditableCard(
       'production_trends',
@@ -461,9 +734,11 @@ class _CityViewState extends ConsumerState<CityView>
           ),
         ),
       ),
+      tabKey: 'production',
     );
   }
 
+  /// Carte "EFFICACITÉ" (métriques).
   Widget _buildProductionEfficiency() {
     return _wrapInEditableCard(
       'production_efficiency',
@@ -485,276 +760,184 @@ class _CityViewState extends ConsumerState<CityView>
           ),
         ),
       ),
+      tabKey: 'production',
     );
   }
 
-  Widget _buildTradeTab() {
-    return SingleChildScrollView(
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: Column(
-          children: [
-            _buildActiveOffers(),
-            _buildTradeHistory(),
-            _buildMarketAnalysis(),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Cartes "Commerce"
-  Widget _buildActiveOffers() {
-    return Card(
-      key: const ValueKey('active_offers'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'OFFRES ACTIVES',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('Liste des offres à venir'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTradeHistory() {
-    return Card(
-      key: const ValueKey('trade_history'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'HISTORIQUE',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('Historique des échanges à venir'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildMarketAnalysis() {
-    return Card(
-      key: const ValueKey('market_analysis'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ANALYSE DU MARCHÉ',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('Analyse des prix à venir'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Cartes "Développement"
+  /// Carte "AMÉLIORATIONS POSSIBLES".
   Widget _buildUpgradeOptions() {
-    return Card(
-      key: const ValueKey('upgrade_options'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'AMÉLIORATIONS POSSIBLES',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('Options d\'amélioration à venir'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDevelopmentProjects() {
-    return Card(
-      key: const ValueKey('development_projects'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'PROJETS EN COURS',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('Liste des projets à venir'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildResourceRequirements() {
-    return Card(
-      key: const ValueKey('resource_requirements'),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'RESSOURCES NÉCESSAIRES',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
-            const SizedBox(height: 12),
-            const Center(
-              child: Text('Besoins en ressources à venir'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// Liste des ressources de la ville sous forme de Rows (Production tab)
-  Widget _buildResourcesList() {
-    return Column(
-      children: _resourcesList
-          .where((res) => (res['value'] as double) > 0)
-          .map((res) => _buildResourceRow(
-                res['icon'] as IconData,
-                res['label'] as String,
-                res['value'] as double,
-              ))
-          .toList(),
-    );
-  }
-
-  /// Liste des ressources pour l'onglet "Vue d'ensemble" (grille)
-  Widget _buildResourcesGrid() {
-    final filtered =
-        _resourcesList.where((res) => (res['value'] as double) > 0).toList();
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: filtered.length,
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        mainAxisSpacing: 8,
-        crossAxisSpacing: 8,
-        childAspectRatio: 2.5,
-      ),
-      itemBuilder: (context, index) {
-        final item = filtered[index];
-        return _buildResourceGridItem(
-          item['icon'] as IconData,
-          item['label'] as String,
-          item['value'] as double,
-        );
-      },
-    );
-  }
-
-  Widget _buildResourceGridItem(IconData icon, String label, double value) {
-    return Container(
-      padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: Theme.of(context).dividerColor,
-        ),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+    return _wrapInEditableCard(
+      'upgrade_options',
+      Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 14),
-              const SizedBox(width: 4),
               Text(
-                label,
+                'AMÉLIORATIONS POSSIBLES',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text('Options d\'amélioration à venir'),
               ),
             ],
           ),
-          const SizedBox(height: 4),
-          Text(
-            _numberFormat.format(value),
-            style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+      ),
+      tabKey: 'production',
+    );
+  }
+
+  /// -------------------------------------------------------------------------
+  ///                        CARTES DE L'ONGLET "COMMERCE"
+  /// -------------------------------------------------------------------------
+
+  /// Carte "OFFRES ACTIVES".
+  Widget _buildActiveOffers() {
+    return _wrapInEditableCard(
+      'active_offers',
+      Card(
+        key: const ValueKey('active_offers'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'OFFRES ACTIVES',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text('Liste des offres à venir'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+      tabKey: 'trade',
     );
   }
 
-  Widget _buildResourceRow(IconData icon, String label, double value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 8),
-          Expanded(child: Text(label)),
-          Text(
-            _numberFormat.format(value),
-            style: TextStyle(
-              color: value > 0 ? Colors.green : Colors.red,
-              fontWeight: FontWeight.w500,
-            ),
+  /// Carte "HISTORIQUE".
+  Widget _buildTradeHistory() {
+    return _wrapInEditableCard(
+      'trade_history',
+      Card(
+        key: const ValueKey('trade_history'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'HISTORIQUE',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text('Historique des échanges à venir'),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
+      tabKey: 'trade',
     );
   }
 
-  Widget _buildInfoRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Icon(icon, size: 16),
-          const SizedBox(width: 8),
-          Text('$label:'),
-          const SizedBox(width: 4),
-          Expanded(child: Text(value)),
-        ],
+  /// Carte "ANALYSE DU MARCHÉ".
+  Widget _buildMarketAnalysis() {
+    return _wrapInEditableCard(
+      'market_analysis',
+      Card(
+        key: const ValueKey('market_analysis'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'ANALYSE DU MARCHÉ',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text('Analyse des prix à venir'),
+              ),
+            ],
+          ),
+        ),
       ),
+      tabKey: 'trade',
     );
   }
 
-  void _showNotImplemented() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Fonctionnalité en développement'),
-        behavior: SnackBarBehavior.floating,
+  /// -------------------------------------------------------------------------
+  ///                   CARTES DE L'ONGLET "DÉVELOPPEMENT"
+  /// -------------------------------------------------------------------------
+
+  /// Carte "PROJETS EN COURS".
+  Widget _buildDevelopmentProjects() {
+    return _wrapInEditableCard(
+      'development_projects',
+      Card(
+        key: const ValueKey('development_projects'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'PROJETS EN COURS',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text('Liste des projets à venir'),
+              ),
+            ],
+          ),
+        ),
       ),
+      tabKey: 'development',
     );
   }
 
-  /// Tableau descriptif des ressources
+  /// Carte "RESSOURCES NÉCESSAIRES" (pour projets, etc.).
+  Widget _buildResourceRequirements() {
+    return _wrapInEditableCard(
+      'resource_requirements',
+      Card(
+        key: const ValueKey('resource_requirements'),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'RESSOURCES NÉCESSAIRES',
+                style: Theme.of(context).textTheme.labelMedium,
+              ),
+              const SizedBox(height: 12),
+              const Center(
+                child: Text('Besoins en ressources à venir'),
+              ),
+            ],
+          ),
+        ),
+      ),
+      tabKey: 'development',
+    );
+  }
+
+  /// -------------------------------------------------------------------------
+  ///                   MÉTHODES PRATIQUES (RESOURCE LIST, etc.)
+  /// -------------------------------------------------------------------------
+
+  /// Retourne la liste des ressources à afficher.
   List<Map<String, dynamic>> get _resourcesList => [
         {
           'icon': Icons.oil_barrel,
@@ -782,8 +965,7 @@ class _CityViewState extends ConsumerState<CityView>
           'value': widget.city.resources.workforce
         },
         {
-          'icon':
-              Icons.diamond, // Si l'icône n'existe pas, utilisez autre chose
+          'icon': Icons.diamond,
           'label': 'Ressources rares',
           'value': widget.city.resources.rareResources
         },
@@ -798,6 +980,127 @@ class _CityViewState extends ConsumerState<CityView>
           'value': widget.city.resources.warBonds
         },
       ];
+
+  /// Construit une grille (2 colonnes) avec les ressources présentes.
+  Widget _buildResourcesGrid() {
+    final filtered =
+        _resourcesList.where((res) => (res['value'] as double) > 0).toList();
+
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: filtered.length,
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        mainAxisSpacing: 8,
+        crossAxisSpacing: 8,
+        childAspectRatio: 2.5,
+      ),
+      itemBuilder: (context, index) {
+        final item = filtered[index];
+        return _buildResourceGridItem(
+          item['icon'] as IconData,
+          item['label'] as String,
+          item['value'] as double,
+        );
+      },
+    );
+  }
+
+  /// Construction d'un "item" de ressource dans la grille.
+  Widget _buildResourceGridItem(IconData icon, String label, double value) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: Theme.of(context).dividerColor,
+        ),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 14),
+              const SizedBox(width: 4),
+              Text(label),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _numberFormat.format(value),
+            style: const TextStyle(fontWeight: FontWeight.bold),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construit une liste de ressources (verticale) pour la production.
+  Widget _buildResourcesList() {
+    return Column(
+      children: _resourcesList
+          .where((res) => (res['value'] as double) > 0)
+          .map(
+            (res) => _buildResourceRow(
+              res['icon'] as IconData,
+              res['label'] as String,
+              res['value'] as double,
+            ),
+          )
+          .toList(),
+    );
+  }
+
+  /// Construit une "row" de ressource, avec icône, label et valeur.
+  Widget _buildResourceRow(IconData icon, String label, double value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 8),
+          Expanded(child: Text(label)),
+          Text(
+            _numberFormat.format(value),
+            style: TextStyle(
+              color: value > 0 ? Colors.green : Colors.red,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Construit une row d'information pour l'encart "INFORMATIONS" (ex.: Type: Standard).
+  Widget _buildInfoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, size: 16),
+          const SizedBox(width: 8),
+          Text('$label:'),
+          const SizedBox(width: 4),
+          Expanded(child: Text(value)),
+        ],
+      ),
+    );
+  }
+
+  /// Simple message de placeholder pour fonctionnalité non-implémentée.
+  void _showNotImplemented() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Fonctionnalité en développement'),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+  }
 
   @override
   void dispose() {
