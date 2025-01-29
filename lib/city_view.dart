@@ -830,12 +830,12 @@ class _CityViewState extends ConsumerState<CityView>
         {
           'icon': Icons.oil_barrel,
           'label': 'Pétrole',
-          'value': widget.city.resources.oil
+          'value': '${widget.city.resources.oil}/h'
         },
         {
           'icon': Icons.construction,
           'label': 'Métal',
-          'value': widget.city.resources.metal
+          'value': '${widget.city.resources.metal}/h'
         },
         {
           'icon': Icons.shopping_cart,
@@ -845,27 +845,27 @@ class _CityViewState extends ConsumerState<CityView>
         {
           'icon': Icons.grass,
           'label': 'Blé',
-          'value': widget.city.resources.wheat
+          'value': '${widget.city.resources.wheat}/h'
         },
         {
           'icon': Icons.engineering,
           'label': 'Main d\'œuvre',
-          'value': widget.city.resources.workforce
+          'value': '${widget.city.resources.workforce}/h'
         },
         {
           'icon': Icons.diamond,
           'label': 'Ressources rares',
-          'value': widget.city.resources.rareResources
+          'value': '${widget.city.resources.rareResources}/h'
         },
         {
           'icon': Icons.attach_money,
           'label': 'Argent',
-          'value': widget.city.resources.money
+          'value': '${widget.city.resources.money}/h'
         },
         {
           'icon': Icons.military_tech,
           'label': 'Obligations de guerre',
-          'value': widget.city.resources.warBonds
+          'value': '${widget.city.resources.warBonds}/h'
         },
       ];
 
@@ -888,13 +888,13 @@ class _CityViewState extends ConsumerState<CityView>
         return _buildResourceGridItem(
           item['icon'] as IconData,
           item['label'] as String,
-          item['value'] as double,
+          item['value'] as String,
         );
       },
     );
   }
 
-  Widget _buildResourceGridItem(IconData icon, String label, double value) {
+  Widget _buildResourceGridItem(IconData icon, String label, String value) {
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -928,7 +928,9 @@ class _CityViewState extends ConsumerState<CityView>
   Widget _buildResourcesList() {
     return Column(
       children: _resourcesList
-          .where((res) => (res['value'] as double) > 0)
+          .where(
+              (res) => (res['value'] as String).isNotEmpty) //NOT WORKING HERE
+          //TODO: Fix this
           .map((res) => _buildResourceRow(
                 res['icon'] as IconData,
                 res['label'] as String,
