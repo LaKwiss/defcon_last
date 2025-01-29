@@ -8,6 +8,7 @@ class CityResources extends Equatable {
   final double workforce;
   final double rareResources;
   final double money;
+  final double warBonds;
 
   const CityResources({
     this.oil = 0.0,
@@ -17,11 +18,20 @@ class CityResources extends Equatable {
     this.workforce = 0.0,
     this.rareResources = 0.0,
     this.money = 0.0,
+    this.warBonds = 0.0,
   });
 
   @override
-  List<Object> get props =>
-      [oil, metal, crates, wheat, workforce, rareResources, money];
+  List<Object> get props => [
+        oil,
+        metal,
+        crates,
+        wheat,
+        workforce,
+        rareResources,
+        money,
+        warBonds,
+      ];
 
   CityResources copyWith({
     double? oil,
@@ -31,6 +41,7 @@ class CityResources extends Equatable {
     double? workforce,
     double? rareResources,
     double? money,
+    double? warBonds,
   }) {
     return CityResources(
       oil: oil ?? this.oil,
@@ -40,6 +51,7 @@ class CityResources extends Equatable {
       workforce: workforce ?? this.workforce,
       rareResources: rareResources ?? this.rareResources,
       money: money ?? this.money,
+      warBonds: warBonds ?? this.warBonds,
     );
   }
 
@@ -51,6 +63,7 @@ class CityResources extends Equatable {
         workforce: workforce + other.workforce,
         rareResources: rareResources + other.rareResources,
         money: money + other.money,
+        warBonds: warBonds + other.warBonds,
       );
 
   CityResources operator -(CityResources other) => CityResources(
@@ -61,6 +74,7 @@ class CityResources extends Equatable {
         workforce: workforce - other.workforce,
         rareResources: rareResources - other.rareResources,
         money: money - other.money,
+        warBonds: warBonds - other.warBonds,
       );
 
   CityResources operator *(double factor) => CityResources(
@@ -71,6 +85,7 @@ class CityResources extends Equatable {
         workforce: workforce * factor,
         rareResources: rareResources * factor,
         money: money * factor,
+        warBonds: warBonds * factor,
       );
 
   factory CityResources.fromJson(Map<String, dynamic> json) {
@@ -82,6 +97,7 @@ class CityResources extends Equatable {
       workforce: json['workforce']?.toDouble() ?? 0.0,
       rareResources: json['rareResources']?.toDouble() ?? 0.0,
       money: json['money']?.toDouble() ?? 0.0,
+      warBonds: json['warBonds']?.toDouble() ?? 0.0,
     );
   }
 
@@ -93,5 +109,6 @@ class CityResources extends Equatable {
         'workforce': workforce,
         'rareResources': rareResources,
         'money': money,
+        'warBonds': warBonds,
       };
 }

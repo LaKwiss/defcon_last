@@ -8,7 +8,7 @@ class City extends Equatable {
   final LatLng latLng;
   final int population;
   final int width;
-  final Country? country;
+  final Country country;
   final CityResources resources;
 
   const City({
@@ -21,7 +21,8 @@ class City extends Equatable {
   });
 
   @override
-  List<Object> get props => [name, latLng, population, width, resources];
+  List<Object> get props =>
+      [name, latLng, population, width, country, resources];
 
   factory City.fromJson(Map<String, dynamic> json) => City(
         name: json['asciiname'],
@@ -44,7 +45,7 @@ class City extends Equatable {
         },
         'population': population,
         'width': width,
-        'country': country?.toJson(),
+        'country': country.toJson(),
         'resources': resources.toJson(),
       };
 
@@ -64,4 +65,7 @@ class City extends Equatable {
         country: country ?? this.country,
         resources: resources ?? this.resources,
       );
+
+  @override
+  bool? get stringify => true;
 }

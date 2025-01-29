@@ -62,24 +62,26 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
               builder: (_, ref, __) => ref.watch(cityProvider).when(
                     data: (cities) => MarkerLayer(
                       markers: cities
-                          .map((city) => Marker(
-                                point: city.latLng,
-                                width: 30,
-                                height: 30,
-                                child: GestureDetector(
-                                  onTap: () => _handleTapEvent(city),
-                                  child: Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.red.withOpacity(0.5),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(
-                                        color: Colors.red,
-                                        width: 1.5,
-                                      ),
+                          .map(
+                            (city) => Marker(
+                              point: city.latLng,
+                              width: 30,
+                              height: 30,
+                              child: GestureDetector(
+                                onTap: () => _handleTapEvent(city),
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: Colors.red.withOpacity(0.5),
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: Colors.red,
+                                      width: 1.5,
                                     ),
                                   ),
                                 ),
-                              ))
+                              ),
+                            ),
+                          )
                           .toList(),
                     ),
                     loading: () => const MarkerLayer(markers: []),
@@ -93,10 +95,11 @@ class HomeScreenState extends ConsumerState<HomeScreen> {
   void _handleMapEvent(MapEvent event) {
     ref
         .read(cityProvider.notifier)
-        .updateVisibleCities(event.camera.visibleBounds, minPopulation: 400000);
+        .updateVisibleCities(event.camera.visibleBounds);
   }
 
   void _handleTapEvent(City city) {
+    print(city.toString());
     showDialog(
       context: context,
       builder: (context) => Material(
